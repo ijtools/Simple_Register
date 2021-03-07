@@ -20,7 +20,13 @@ import ij.WindowManager;
 import ij.gui.GUI;
 import ij.gui.ImageWindow;
 import ij.plugin.frame.PlugInFrame;
+import ij.process.ImageProcessor;
 import inrae.bibs.gui.GuiHelper;
+import inrae.bibs.register.Point2D;
+import inrae.bibs.register.Registration;
+import inrae.bibs.register.Transform2D;
+import inrae.bibs.register.transforms.CenteredMotion2D;
+import inrae.bibs.register.transforms.Translation2D;
 
 /**
  * @author dlegland
@@ -49,10 +55,14 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     ImagePlus referenceImagePlus = null;
     ImagePlus movingImagePlus = null;
+    
     double xShift = 0.0;
     double yShift = 0.0;
     double rotationAngle = 0.0;
     double logScale = 0.0;
+    boolean validParams = true;
+    
+    Transform2D transform = new Translation2D(0, 0);
     
     ImagePlus resultImagePlus = null;
     
@@ -112,7 +122,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         
         this.xShiftTextField = new JTextField("0", 10);
         this.xShiftTextField.addActionListener(this);
-        this.xShiftTextField.getDocument().addDocumentListener(this);
+//        this.xShiftTextField.getDocument().addDocumentListener(this);
         this.yShiftTextField = new JTextField("0", 10);
         this.yShiftTextField.addActionListener(this);
         this.rotationAngleTextField = new JTextField("0", 10);
@@ -205,25 +215,89 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     {
         IJ.log("Run registration!");
         parseRegistrationParameters();
-        
+        if (!this.validParams)
+        {
+            return;
+        }
+
         
         String imageName1 = (String) this.imageNames1Combo.getSelectedItem();
+        String imageName2 = (String) this.imageNames2Combo.getSelectedItem();
         IJ.log("work with image:" + imageName1);
         
-//        ImagePlus resultImage = IJ.getImage();
-        ImagePlus resultImage = WindowManager.getImage(imageName1);
+        // retrieve image data
+        referenceImagePlus = WindowManager.getImage(imageName1);
+        movingImagePlus = WindowManager.getImage(imageName2);
+        ImageProcessor image1 = referenceImagePlus.getProcessor();
+        ImageProcessor image2 = movingImagePlus.getProcessor();
+        
+        // need to update transform after updating images (to compute center)
+        updateTransform();
+        
+
+        ImageProcessor result = Registration.computeTransformedImage(image1, this.transform, image2);
+        ImagePlus resultPlus = new ImagePlus("Result", result);
         
         if (this.resultFrame == null)
         {
-            this.resultFrame = new ImageWindow(resultImage);
+            this.resultFrame = new ImageWindow(resultPlus);
         }
         
-        this.resultFrame.setImage(resultImage);
+        this.resultFrame.setImage(resultPlus);
         this.resultFrame.setVisible(true);
         
     }
     
     
+    private void parseRegistrationParameters()
+    {
+        IJ.log("parse parameters");
+        
+        this.validParams = false;
+        
+        try 
+        {
+            // parse translation params
+            this.xShift = Double.parseDouble(xShiftTextField.getText());
+            this.yShift = Double.parseDouble(yShiftTextField.getText());
+            
+            // parse rotation
+            this.rotationAngle = Double.parseDouble(rotationAngleTextField.getText());
+            
+            // parse scaling factor
+            double klog = Double.parseDouble(scalingFactorLogTextField.getText());
+            this.logScale = Math.pow(2, klog / 2.0);
+            IJ.log("scaling factor: " + this.logScale); 
+
+            this.validParams = true;
+        }
+        catch (NumberFormatException ex)
+        {
+            // just escape
+        }
+    }
+    
+    private void updateTransform()
+    {
+        int transfoIndex = this.registrationTypeCombo.getSelectedIndex();
+        
+        switch (transfoIndex)
+        {
+        case 0:
+            this.transform = new Translation2D(-this.xShift, -this.yShift);
+            break;
+            
+        case 1:
+            double sizeX = this.referenceImagePlus.getWidth();
+            double sizeY = this.referenceImagePlus.getHeight();
+            Point2D center = new Point2D(sizeX/2, sizeY/2);
+            this.transform = new CenteredMotion2D(center, this.rotationAngle, this.xShift, this.yShift);
+            break;
+            
+        default:
+            IJ.error("Input Error", "This transformation is not implemented");
+        }
+    }
 
     // ====================================================
     // Widget call backs
@@ -235,19 +309,10 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         {
             runRegistration();
         }
-        else if (evt.getSource() == xShiftTextField)
+        else
         {
-            IJ.log("X Shift updated");
+            IJ.log("something happen...");
         }
-        else if (evt.getSource() == yShiftTextField)
-        {
-            IJ.log("Y Shift updated");
-        }
-    }
-    
-    private void parseRegistrationParameters()
-    {
-        
     }
     
     
@@ -259,21 +324,30 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     }
 
     @Override
-    public void insertUpdate(DocumentEvent e)
+    public void insertUpdate(DocumentEvent evt)
     {
-        IJ.log("insert");
+        processTextUpdate(evt);
     }
 
     @Override
-    public void removeUpdate(DocumentEvent e)
+    public void removeUpdate(DocumentEvent evt)
     {
-        IJ.log("remove");
+        processTextUpdate(evt);
     }
 
     @Override
-    public void changedUpdate(DocumentEvent e)
+    public void changedUpdate(DocumentEvent evt)
     {
-        IJ.log("change");
+        processTextUpdate(evt);
+    }
+    
+    private void processTextUpdate(DocumentEvent evt)
+    {
+        if (this.autoUpdateCheckBox.isSelected())
+        {
+            IJ.log("(auto-update)");
+            runRegistration();
+        }
     }
 
 }
