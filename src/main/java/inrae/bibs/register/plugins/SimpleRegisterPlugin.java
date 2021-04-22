@@ -8,6 +8,9 @@ import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.util.Locale;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -29,10 +32,12 @@ import inrae.bibs.register.transforms.CenteredMotion2D;
 import inrae.bibs.register.transforms.Translation2D;
 
 /**
+ * A simple plugin for demonstrating 2D registration workflow.
+ * 
  * @author dlegland
  *
  */
-public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener, DocumentListener
+public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener, DocumentListener, ItemListener
 {
     // ====================================================
     // Static fields
@@ -56,12 +61,15 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     ImagePlus referenceImagePlus = null;
     ImagePlus movingImagePlus = null;
     
+    /** the translation vector (in pixels) */
     double xShift = 0.0;
     double yShift = 0.0;
+    /** rotation angle (degrees)*/
     double rotationAngle = 0.0;
     double logScale = 0.0;
     boolean validParams = true;
     
+    /** The transform model from reference space to moving image space */
     Transform2D transform = new Translation2D(0, 0);
     
     ImagePlus resultImagePlus = null;
@@ -77,9 +85,13 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     JComboBox<String> registrationTypeCombo;
 
+    JLabel xShiftLabel;
     JTextField xShiftTextField;
+    JLabel yShiftLabel;
     JTextField yShiftTextField;
+    JLabel rotationAngleLabel;
     JTextField rotationAngleTextField;
+    JLabel scalingFactorLogLabel;
     JTextField scalingFactorLogTextField;
     
     JCheckBox autoUpdateCheckBox;
@@ -119,14 +131,21 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         this.registrationTypeCombo.addItem("Translation");
         this.registrationTypeCombo.addItem("Motion (Translation+Rotation)");
         this.registrationTypeCombo.addItem("Similarity (Tr.+Rot.+Scaling)");
+        this.registrationTypeCombo.addItemListener(this);
         
+        this.xShiftLabel = new JLabel("Shift X (pixels):");
         this.xShiftTextField = new JTextField("0", 10);
         this.xShiftTextField.addActionListener(this);
-//        this.xShiftTextField.getDocument().addDocumentListener(this);
+        this.xShiftTextField.getDocument().addDocumentListener(this);
+        this.yShiftLabel = new JLabel("Shift Y (pixels):");
         this.yShiftTextField = new JTextField("0", 10);
-        this.yShiftTextField.addActionListener(this);
+        this.yShiftTextField.getDocument().addDocumentListener(this);
+        this.rotationAngleLabel = new JLabel("Rotation angle (degrees):");
         this.rotationAngleTextField = new JTextField("0", 10);
+        this.rotationAngleTextField.getDocument().addDocumentListener(this);
+        this.scalingFactorLogLabel = new JLabel("Scaling factor (100*log2):");
         this.scalingFactorLogTextField = new JTextField("0", 10);
+        this.scalingFactorLogTextField.getDocument().addDocumentListener(this);
         
         this.autoUpdateCheckBox = new JCheckBox("Auto-Update", false);
         this.autoUpdateCheckBox.addActionListener(this);
@@ -157,14 +176,15 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         registrationPanel.setLayout(new GridLayout(5, 2));
         registrationPanel.add(new JLabel("Registration Type:"));
         registrationPanel.add(registrationTypeCombo);
-        registrationPanel.add(new JLabel("Shift X (pixels):"));
+        registrationPanel.add(xShiftLabel);
         registrationPanel.add(xShiftTextField);
-        registrationPanel.add(new JLabel("Shift Y (pixels):"));
+        registrationPanel.add(yShiftLabel);
         registrationPanel.add(yShiftTextField);
-        registrationPanel.add(new JLabel("Rotation angle (degrees):"));
+        registrationPanel.add(rotationAngleLabel);
         registrationPanel.add(rotationAngleTextField);
-        registrationPanel.add(new JLabel("Scaling factor (100*log2):"));
+        registrationPanel.add(scalingFactorLogLabel);
         registrationPanel.add(scalingFactorLogTextField);
+        updateEnabledRegistrationWidgets();
         
         mainPanel.add(imagesPanel);
         mainPanel.add(displayOptionsPanel);
@@ -261,14 +281,19 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
             this.xShift = Double.parseDouble(xShiftTextField.getText());
             this.yShift = Double.parseDouble(yShiftTextField.getText());
             
-            // parse rotation
-            this.rotationAngle = Double.parseDouble(rotationAngleTextField.getText());
-            
-            // parse scaling factor
-            double klog = Double.parseDouble(scalingFactorLogTextField.getText());
-            this.logScale = Math.pow(2, klog / 2.0);
-            IJ.log("scaling factor: " + this.logScale); 
+            // parse rotation angle (degrees)
+            if (this.registrationTypeCombo.getSelectedIndex() > 0)
+            {
+                this.rotationAngle = Double.parseDouble(rotationAngleTextField.getText());
+            }
 
+            // parse scaling factor
+            if (this.registrationTypeCombo.getSelectedIndex() > 1)
+            {
+                double klog = Double.parseDouble(scalingFactorLogTextField.getText());
+                this.logScale = Math.pow(2, klog / 2.0);
+                IJ.log("scaling factor: " + this.logScale); 
+            }
             this.validParams = true;
         }
         catch (NumberFormatException ex)
@@ -299,6 +324,13 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         }
     }
 
+    /** Overrides close() in PlugInFrame. */
+    public void close()
+    {
+        super.close();
+    }
+
+    
     // ====================================================
     // Widget call backs
     
@@ -316,13 +348,57 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     }
     
     
-
-    /** Overrides close() in PlugInFrame. */
-    public void close()
+    public void itemStateChanged(ItemEvent evt)
     {
-        super.close();
+        if (evt.getSource() == registrationTypeCombo && evt.getStateChange() == ItemEvent.SELECTED)
+        {
+            updateEnabledRegistrationWidgets();
+        }
     }
-
+    
+    private void updateEnabledRegistrationWidgets()
+    {
+        this.rotationAngleTextField.getDocument().removeDocumentListener(this);
+        this.scalingFactorLogTextField.getDocument().removeDocumentListener(this);
+        
+        if (registrationTypeCombo.getSelectedIndex() == 0)
+        {
+            this.rotationAngleLabel.setEnabled(false);
+            this.rotationAngleTextField.setText("0.0");
+            this.rotationAngleTextField.setEnabled(false);
+            this.scalingFactorLogLabel.setEnabled(false);
+            this.scalingFactorLogTextField.setText("0.0");
+            this.scalingFactorLogTextField.setEnabled(false);
+        }
+        else if (registrationTypeCombo.getSelectedIndex() == 1)
+        {
+            this.rotationAngleLabel.setEnabled(true);
+            this.rotationAngleTextField.setText(String.format(Locale.ENGLISH, "%.2f", this.rotationAngle));
+            this.rotationAngleTextField.getDocument().addDocumentListener(this);
+            this.rotationAngleTextField.setEnabled(true);
+            this.scalingFactorLogLabel.setEnabled(false);
+            this.scalingFactorLogTextField.setText("0.0");
+            this.scalingFactorLogTextField.setEnabled(false);
+        }
+        else if (registrationTypeCombo.getSelectedIndex() == 2)
+        {
+            this.rotationAngleLabel.setEnabled(true);
+            this.rotationAngleTextField.setText(String.format(Locale.ENGLISH, "%.2f", this.rotationAngle));
+            this.rotationAngleTextField.getDocument().addDocumentListener(this);
+            this.rotationAngleTextField.setEnabled(true);
+            this.scalingFactorLogLabel.setEnabled(true);
+            this.scalingFactorLogTextField.setText(createLogScaleString());
+            this.scalingFactorLogTextField.getDocument().addDocumentListener(this);
+            this.scalingFactorLogTextField.setEnabled(true);
+        }
+    }
+    
+    private String createLogScaleString()
+    {
+        double value = 2.0 * Math.log(this.logScale) / Math.log(2.0);
+        return String.format(Locale.ENGLISH, "%.2f", value);
+    }
+    
     @Override
     public void insertUpdate(DocumentEvent evt)
     {
@@ -343,6 +419,32 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     private void processTextUpdate(DocumentEvent evt)
     {
+        try
+        {
+            if(evt.getDocument() == xShiftTextField.getDocument())
+            {
+                this.xShift = Double.parseDouble(xShiftTextField.getText());
+            }
+            else if(evt.getDocument() == yShiftTextField.getDocument())
+            {
+                this.yShift = Double.parseDouble(yShiftTextField.getText());
+            }
+            else if(evt.getDocument() == rotationAngleTextField.getDocument())
+            {
+                this.rotationAngle = Double.parseDouble(rotationAngleTextField.getText());
+                IJ.log("set angle to " + this.rotationAngle);
+            }
+            else if(evt.getDocument() == scalingFactorLogTextField.getDocument())
+            {
+                double klog = Double.parseDouble(scalingFactorLogTextField.getText());
+                this.logScale = Math.pow(2, klog / 2.0);
+            }
+        }
+        catch (NumberFormatException ex)
+        {
+            return;
+        }
+        
         if (this.autoUpdateCheckBox.isSelected())
         {
             IJ.log("(auto-update)");
