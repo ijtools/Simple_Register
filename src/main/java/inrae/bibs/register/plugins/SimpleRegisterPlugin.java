@@ -29,7 +29,9 @@ import inrae.bibs.register.ImagePairDisplay;
 import inrae.bibs.register.Point2D;
 import inrae.bibs.register.Registration;
 import inrae.bibs.register.Transform2D;
+import inrae.bibs.register.display.CheckerBoardDisplay;
 import inrae.bibs.register.display.MagentaGreenDisplay;
+import inrae.bibs.register.display.SumOfIntensitiesDisplay;
 import inrae.bibs.register.transforms.CenteredMotion2D;
 import inrae.bibs.register.transforms.Translation2D;
 
@@ -73,6 +75,11 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     /** The transform model from reference space to moving image space */
     Transform2D transform = new Translation2D(0, 0);
+    
+    /** The result of the transform applied on the moving image */
+    ImageProcessor registeredImage; 
+    
+    ImagePairDisplay resultDisplay = new MagentaGreenDisplay();
     
     ImagePlus resultImagePlus = null;
     
@@ -128,6 +135,8 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         this.displayTypeCombo.addItem("Checkerboard");
         this.displayTypeCombo.addItem("Magenta-Green");
         this.displayTypeCombo.addItem("Sum of intensities");
+        this.displayTypeCombo.setSelectedIndex(1);
+        this.displayTypeCombo.addItemListener(this);
         
         this.registrationTypeCombo = new JComboBox<String>();
         this.registrationTypeCombo.addItem("Translation");
@@ -170,7 +179,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         imagesPanel.add(this.imageNames2Combo);
 
         JPanel displayOptionsPanel = GuiHelper.createOptionsPanel("Display Options");
-        displayOptionsPanel.setLayout(new GridLayout(2, 2));
+        displayOptionsPanel.setLayout(new GridLayout(1, 2));
         displayOptionsPanel.add(new JLabel("Display Type:"));
         displayOptionsPanel.add(this.displayTypeCombo);
         
@@ -266,11 +275,10 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         updateTransform();
         
         // apply transform on moving image
-        ImageProcessor transformedImage = Registration.computeTransformedImage(image1, this.transform, image2);
+        registeredImage = Registration.computeTransformedImage(image1, this.transform, image2);
         
         // compute display result
-        ImagePairDisplay display = new MagentaGreenDisplay();
-        ImageProcessor result = display.compute(image1, transformedImage);
+        ImageProcessor result = resultDisplay.compute(image1, registeredImage);
         ImagePlus resultPlus = new ImagePlus("Result", result);
         
         // retrieve frame for displaying result
@@ -368,9 +376,30 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     public void itemStateChanged(ItemEvent evt)
     {
+        if (evt.getSource() == displayTypeCombo && evt.getStateChange() == ItemEvent.SELECTED)
+        {
+            updateResultDisplayType();
+        }
+    
         if (evt.getSource() == registrationTypeCombo && evt.getStateChange() == ItemEvent.SELECTED)
         {
             updateEnabledRegistrationWidgets();
+        }
+    }
+    
+    private void updateResultDisplayType()
+    {
+        if (displayTypeCombo.getSelectedIndex() == 0)
+        {
+            this.resultDisplay = new CheckerBoardDisplay(20);
+        }
+        if (displayTypeCombo.getSelectedIndex() == 1)
+        {
+            this.resultDisplay = new MagentaGreenDisplay();
+        }
+        if (displayTypeCombo.getSelectedIndex() == 2)
+        {
+            this.resultDisplay = new SumOfIntensitiesDisplay();
         }
     }
     

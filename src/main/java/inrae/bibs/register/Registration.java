@@ -31,13 +31,18 @@ public class Registration
      */
     public static final ImageProcessor computeTransformedImage(ImageProcessor reference, Transform2D transform, ImageProcessor movingImage)
     {
+        // retrieve resut image size
         int sizeX = reference.getWidth();
         int sizeY = reference.getHeight();
+        
+        // size of moving image
         int sizeX2 = movingImage.getWidth();
         int sizeY2 = movingImage.getHeight();
         
+        // create result image
         ImageProcessor result = reference.createProcessor(sizeX, sizeY);
         
+        // iterate over pixels of result image
         for (int y = 0; y < sizeY; y++)
         {
             for (int x = 0; x < sizeX; x++)
