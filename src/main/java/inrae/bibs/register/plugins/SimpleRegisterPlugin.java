@@ -25,9 +25,11 @@ import ij.gui.ImageWindow;
 import ij.plugin.frame.PlugInFrame;
 import ij.process.ImageProcessor;
 import inrae.bibs.gui.GuiHelper;
+import inrae.bibs.register.ImagePairDisplay;
 import inrae.bibs.register.Point2D;
 import inrae.bibs.register.Registration;
 import inrae.bibs.register.Transform2D;
+import inrae.bibs.register.display.MagentaGreenDisplay;
 import inrae.bibs.register.transforms.CenteredMotion2D;
 import inrae.bibs.register.transforms.Translation2D;
 
@@ -231,6 +233,15 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     // ====================================================
     // Main processing methods
  
+    /**
+     * The main processing method. It applies several processing steps:
+     * <ul>
+     * <li> Retrieve input arguments </li>
+     * <li> Compute the transform </li>
+     * <li> Apply transform to moving image</li>
+     * <li> Compute result image showing result</li>
+     * </ul>
+     */
     private void runRegistration()
     {
         IJ.log("Run registration!");
@@ -240,10 +251,10 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
             return;
         }
 
-        
+        // retrieve name of images
         String imageName1 = (String) this.imageNames1Combo.getSelectedItem();
         String imageName2 = (String) this.imageNames2Combo.getSelectedItem();
-        IJ.log("work with image:" + imageName1);
+        IJ.log("use reference image:" + imageName1);
         
         // retrieve image data
         referenceImagePlus = WindowManager.getImage(imageName1);
@@ -254,18 +265,25 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         // need to update transform after updating images (to compute center)
         updateTransform();
         
-
-        ImageProcessor result = Registration.computeTransformedImage(image1, this.transform, image2);
+        // apply transform on moving image
+        ImageProcessor transformedImage = Registration.computeTransformedImage(image1, this.transform, image2);
+        
+        // compute display result
+        ImagePairDisplay display = new MagentaGreenDisplay();
+        ImageProcessor result = display.compute(image1, transformedImage);
         ImagePlus resultPlus = new ImagePlus("Result", result);
         
+        // retrieve frame for displaying result
         if (this.resultFrame == null)
         {
             this.resultFrame = new ImageWindow(resultPlus);
         }
         
+        // update display frame
+        double mag = this.resultFrame.getCanvas().getMagnification();
         this.resultFrame.setImage(resultPlus);
+        this.resultFrame.getCanvas().setMagnification(mag);
         this.resultFrame.setVisible(true);
-        
     }
     
     
