@@ -75,6 +75,18 @@ public class Point2D
         double yr = x * sit + y * cot;
         return new Point2D(xr, yr);
     }
+    
+    /**
+     * Homogeneous scaling by a factor k.
+     * 
+     * @param k
+     *            the scaling factor.
+     * @return the result of scaling applied to the initial point.
+     */
+    public Point2D scale(double k)
+    {
+        return new Point2D(x * k, y * k);
+    }
 
 	
 	// ===================================================================

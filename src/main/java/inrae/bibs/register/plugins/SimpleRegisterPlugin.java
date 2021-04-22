@@ -33,6 +33,7 @@ import inrae.bibs.register.display.CheckerBoardDisplay;
 import inrae.bibs.register.display.MagentaGreenDisplay;
 import inrae.bibs.register.display.SumOfIntensitiesDisplay;
 import inrae.bibs.register.transforms.CenteredMotion2D;
+import inrae.bibs.register.transforms.CenteredSimilarity2D;
 import inrae.bibs.register.transforms.Translation2D;
 
 /**
@@ -68,9 +69,13 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     /** the translation vector (in pixels) */
     double xShift = 0.0;
     double yShift = 0.0;
+    
     /** rotation angle (degrees)*/
     double rotationAngle = 0.0;
-    double logScale = 0.0;
+    
+    /** binary logarithm of the scaling factor (for Similarity transform) */
+    double logScaling = 0.0;
+    
     boolean validParams = true;
     
     /** The transform model from reference space to moving image space */
@@ -154,7 +159,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         this.rotationAngleLabel = new JLabel("Rotation angle (degrees):");
         this.rotationAngleTextField = new JTextField("0", 10);
         this.rotationAngleTextField.getDocument().addDocumentListener(this);
-        this.scalingFactorLogLabel = new JLabel("Scaling factor (100*log2):");
+        this.scalingFactorLogLabel = new JLabel("Log_2 of scaling factor:");
         this.scalingFactorLogTextField = new JTextField("0", 10);
         this.scalingFactorLogTextField.getDocument().addDocumentListener(this);
         
@@ -316,9 +321,8 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
             // parse scaling factor
             if (this.registrationTypeCombo.getSelectedIndex() > 1)
             {
-                double klog = Double.parseDouble(scalingFactorLogTextField.getText());
-                this.logScale = Math.pow(2, klog / 2.0);
-                IJ.log("scaling factor: " + this.logScale); 
+                this.logScaling = Double.parseDouble(scalingFactorLogTextField.getText());
+                IJ.log("scaling factor: " + this.logScaling); 
             }
             this.validParams = true;
         }
@@ -335,18 +339,27 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         switch (transfoIndex)
         {
         case 0:
-            this.transform = new Translation2D(-this.xShift, -this.yShift);
+            this.transform = new Translation2D(this.xShift, this.yShift);
             break;
             
         case 1:
+        {
             double sizeX = this.referenceImagePlus.getWidth();
             double sizeY = this.referenceImagePlus.getHeight();
             Point2D center = new Point2D(sizeX/2, sizeY/2);
             this.transform = new CenteredMotion2D(center, this.rotationAngle, this.xShift, this.yShift);
             break;
-            
+        }
+        case 2:
+        {
+            double sizeX = this.referenceImagePlus.getWidth();
+            double sizeY = this.referenceImagePlus.getHeight();
+            Point2D center = new Point2D(sizeX/2, sizeY/2);
+            this.transform = new CenteredSimilarity2D(center, this.logScaling, this.rotationAngle, this.xShift, this.yShift);
+            break;
+        }
         default:
-            IJ.error("Input Error", "This transformation is not implemented");
+                IJ.error("Input Error", "This transformation is not implemented");
         }
     }
 
@@ -442,8 +455,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     private String createLogScaleString()
     {
-        double value = 2.0 * Math.log(this.logScale) / Math.log(2.0);
-        return String.format(Locale.ENGLISH, "%.2f", value);
+        return String.format(Locale.ENGLISH, "%.2f", this.logScaling);
     }
     
     @Override
@@ -483,8 +495,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
             }
             else if(evt.getDocument() == scalingFactorLogTextField.getDocument())
             {
-                double klog = Double.parseDouble(scalingFactorLogTextField.getText());
-                this.logScale = Math.pow(2, klog / 2.0);
+                this.logScaling = Double.parseDouble(scalingFactorLogTextField.getText());
             }
         }
         catch (NumberFormatException ex)
