@@ -6,16 +6,11 @@ package inrae.bibs.register.plugins;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
+import java.awt.event.*;
 import java.util.Locale;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -42,7 +37,7 @@ import inrae.bibs.register.transforms.Translation2D;
  * @author dlegland
  *
  */
-public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener, DocumentListener, ItemListener
+public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener, KeyListener, ItemListener
 {
     // ====================================================
     // Static fields
@@ -101,12 +96,20 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
 
     JLabel xShiftLabel;
     JTextField xShiftTextField;
+    JButton xShiftDec;
+    JButton xShiftInc;
     JLabel yShiftLabel;
+    JButton yShiftDec;
+    JButton yShiftInc;
     JTextField yShiftTextField;
     JLabel rotationAngleLabel;
     JTextField rotationAngleTextField;
+    JButton rotAngleDec;
+    JButton rotAngleInc;
     JLabel scalingFactorLogLabel;
     JTextField scalingFactorLogTextField;
+    JButton scalingDec;
+    JButton scalingInc;
     
     JCheckBox autoUpdateCheckBox;
     JButton runButton;
@@ -134,7 +137,9 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     private void setupWidgets()
     {
         this.imageNames1Combo = new JComboBox<String>();
+        this.imageNames1Combo.addItemListener(this);
         this.imageNames2Combo = new JComboBox<String>();
+        this.imageNames2Combo.addItemListener(this);
         
         this.displayTypeCombo = new JComboBox<String>();
         this.displayTypeCombo.addItem("Checkerboard");
@@ -152,22 +157,40 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         this.xShiftLabel = new JLabel("Shift X (pixels):");
         this.xShiftTextField = new JTextField("0", 10);
         this.xShiftTextField.addActionListener(this);
-        this.xShiftTextField.getDocument().addDocumentListener(this);
+        this.xShiftTextField.addKeyListener(this);
+        this.xShiftDec = createPlusMinusButton("-");
+        this.xShiftInc = createPlusMinusButton("+");
+        
         this.yShiftLabel = new JLabel("Shift Y (pixels):");
         this.yShiftTextField = new JTextField("0", 10);
-        this.yShiftTextField.getDocument().addDocumentListener(this);
+        this.yShiftTextField.addKeyListener(this);
+        this.yShiftDec = createPlusMinusButton("-");
+        this.yShiftInc = createPlusMinusButton("+");
+
         this.rotationAngleLabel = new JLabel("Rotation angle (degrees):");
         this.rotationAngleTextField = new JTextField("0", 10);
-        this.rotationAngleTextField.getDocument().addDocumentListener(this);
+        this.rotationAngleTextField.addKeyListener(this);
+        this.rotAngleDec = createPlusMinusButton("-");
+        this.rotAngleInc = createPlusMinusButton("+");
+
         this.scalingFactorLogLabel = new JLabel("Log_2 of scaling factor:");
         this.scalingFactorLogTextField = new JTextField("0", 10);
-        this.scalingFactorLogTextField.getDocument().addDocumentListener(this);
+        this.scalingFactorLogTextField.addKeyListener(this);
+        this.scalingDec = createPlusMinusButton("-");
+        this.scalingInc = createPlusMinusButton("+");
         
         this.autoUpdateCheckBox = new JCheckBox("Auto-Update", false);
         this.autoUpdateCheckBox.addActionListener(this);
         
         this.runButton = new JButton("Run");
         this.runButton.addActionListener(this);
+    }
+    
+    private JButton createPlusMinusButton(String label)
+    {
+        JButton button = new JButton(label);
+        button.addActionListener(this);
+        return button;
     }
 
     private void setupLayout()
@@ -193,13 +216,13 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         registrationPanel.add(new JLabel("Registration Type:"));
         registrationPanel.add(registrationTypeCombo);
         registrationPanel.add(xShiftLabel);
-        registrationPanel.add(xShiftTextField);
+        registrationPanel.add(createPanel(xShiftTextField, xShiftDec, xShiftInc));
         registrationPanel.add(yShiftLabel);
-        registrationPanel.add(yShiftTextField);
+        registrationPanel.add(createPanel(yShiftTextField, yShiftDec, yShiftInc));
         registrationPanel.add(rotationAngleLabel);
-        registrationPanel.add(rotationAngleTextField);
+        registrationPanel.add(createPanel(rotationAngleTextField, rotAngleDec, rotAngleInc));
         registrationPanel.add(scalingFactorLogLabel);
-        registrationPanel.add(scalingFactorLogTextField);
+        registrationPanel.add(createPanel(scalingFactorLogTextField, scalingDec, scalingInc));
         updateEnabledRegistrationWidgets();
         
         mainPanel.add(imagesPanel);
@@ -210,6 +233,15 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         
         this.setLayout(new BorderLayout());
         this.add(mainPanel, BorderLayout.CENTER);
+    }
+    
+    private JPanel createPanel(JComponent comp, JButton button1, JButton button2)
+    {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        panel.add(comp);
+        panel.add(button1);
+        panel.add(button2);
+        return panel;
     }
 
 
@@ -259,46 +291,35 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     private void runRegistration()
     {
         IJ.log("Run registration!");
+        
+        updateInputImages();
+        
         parseRegistrationParameters();
         if (!this.validParams)
         {
             return;
         }
-
+        
+        // need to update transform after updating images (to compute center)
+        updateTransform();
+        
+        // apply transform on moving image
+        updateRegisteredImage();
+        
+        updateResultDisplay();
+    }
+    
+    private void updateInputImages()
+    {
         // retrieve name of images
         String imageName1 = (String) this.imageNames1Combo.getSelectedItem();
         String imageName2 = (String) this.imageNames2Combo.getSelectedItem();
         IJ.log("use reference image:" + imageName1);
         
         // retrieve image data
-        referenceImagePlus = WindowManager.getImage(imageName1);
-        movingImagePlus = WindowManager.getImage(imageName2);
-        ImageProcessor image1 = referenceImagePlus.getProcessor();
-        ImageProcessor image2 = movingImagePlus.getProcessor();
-        
-        // need to update transform after updating images (to compute center)
-        updateTransform();
-        
-        // apply transform on moving image
-        registeredImage = Registration.computeTransformedImage(image1, this.transform, image2);
-        
-        // compute display result
-        ImageProcessor result = resultDisplay.compute(image1, registeredImage);
-        ImagePlus resultPlus = new ImagePlus("Result", result);
-        
-        // retrieve frame for displaying result
-        if (this.resultFrame == null)
-        {
-            this.resultFrame = new ImageWindow(resultPlus);
-        }
-        
-        // update display frame
-        double mag = this.resultFrame.getCanvas().getMagnification();
-        this.resultFrame.setImage(resultPlus);
-        this.resultFrame.getCanvas().setMagnification(mag);
-        this.resultFrame.setVisible(true);
+        this.referenceImagePlus = WindowManager.getImage(imageName1);
+        this.movingImagePlus = WindowManager.getImage(imageName2);
     }
-    
     
     private void parseRegistrationParameters()
     {
@@ -332,7 +353,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         }
     }
     
-    private void updateTransform()
+    public void updateTransform()
     {
         int transfoIndex = this.registrationTypeCombo.getSelectedIndex();
         
@@ -363,15 +384,49 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         }
     }
 
-    /** Overrides close() in PlugInFrame. */
-    public void close()
+    /**
+     * Applies the current transform on the moving image.
+     */
+    public void updateRegisteredImage()
     {
-        super.close();
-    }
+        // get image processors
+        ImageProcessor image1 = referenceImagePlus.getProcessor();
+        ImageProcessor image2 = movingImagePlus.getProcessor();
 
+        // apply transform on moving image
+        registeredImage = Registration.computeTransformedImage(image1, this.transform, image2);
+    }
     
+    
+    /**
+     * Updates the current display of result, by combining the result of
+     * registration with the reference image.
+     */
+    public void updateResultDisplay()
+    {
+        // retrieve image data
+        ImageProcessor image1 = referenceImagePlus.getProcessor();
+        
+        // compute display result
+        ImageProcessor result = resultDisplay.compute(image1, registeredImage);
+        ImagePlus resultPlus = new ImagePlus("Result", result);
+        
+        // retrieve frame for displaying result
+        if (this.resultFrame == null)
+        {
+            this.resultFrame = new ImageWindow(resultPlus);
+        }
+        
+        // update display frame, keeping the previous magnification
+        double mag = this.resultFrame.getCanvas().getMagnification();
+        this.resultFrame.setImage(resultPlus);
+        this.resultFrame.getCanvas().setMagnification(mag);
+        this.resultFrame.setVisible(true);
+    }
+    
+        
     // ====================================================
-    // Widget call backs
+    // Implementation of ActionListener (for buttons)
     
     @Override
     public void actionPerformed(ActionEvent evt)
@@ -380,23 +435,92 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         {
             runRegistration();
         }
+        else if (evt.getSource() == xShiftInc)
+        {
+            // add the value 1 to x shift
+            this.xShift = this.xShift + 1.0;
+            xShiftTextField.setText(doubleToString(this.xShift));
+        }
+        else if (evt.getSource() == xShiftDec)
+        {
+            // remove the value 1 from x shift
+            this.xShift = this.xShift - 1.0;
+            xShiftTextField.setText(doubleToString(this.xShift));
+        }
+        else if (evt.getSource() == yShiftInc)
+        {
+            // add the value 1 to y shift
+            this.yShift = this.yShift + 1.0;
+            yShiftTextField.setText(doubleToString(this.yShift));
+        }
+        else if (evt.getSource() == yShiftDec)
+        {
+            // remove the value 1 from x shift
+            this.yShift = this.yShift - 1.0;
+            yShiftTextField.setText(doubleToString(this.yShift));
+        }
+        else if (evt.getSource() == rotAngleInc)
+        {
+            // add the value 1 (degree) to rotation angle
+            this.rotationAngle = this.rotationAngle + 1.0;
+            rotationAngleTextField.setText(doubleToString(this.rotationAngle));
+        }
+        else if (evt.getSource() == rotAngleDec)
+        {
+            // remove the value 1 (degree) from rotation angle
+            this.rotationAngle = this.rotationAngle - 1.0;
+            rotationAngleTextField.setText(doubleToString(this.rotationAngle));
+        }
+        else if (evt.getSource() == scalingInc)
+        {
+            // add the value 0.01 to the log of the scaling factor
+            this.logScaling = this.logScaling + 0.01;
+            scalingFactorLogTextField.setText(doubleToString(this.logScaling));
+        }
+        else if (evt.getSource() == scalingDec)
+        {
+            // remove the value 0.01 from the log of the scaling factor
+            this.logScaling = this.logScaling - 0.01;
+            scalingFactorLogTextField.setText(doubleToString(this.logScaling));
+        }
         else
         {
             IJ.log("something happen...");
+            return;
+        }
+
+        if (this.autoUpdateCheckBox.isSelected())
+        {
+            IJ.log("(auto-update)");
+            runRegistration();
         }
     }
     
     
+    // ====================================================
+    // Implementation of ItemStateListener (for Combo boxes)
+    
     public void itemStateChanged(ItemEvent evt)
     {
-        if (evt.getSource() == displayTypeCombo && evt.getStateChange() == ItemEvent.SELECTED)
+        Object src = evt.getSource(); 
+        if (src == displayTypeCombo && evt.getStateChange() == ItemEvent.SELECTED)
         {
             updateResultDisplayType();
         }
     
-        if (evt.getSource() == registrationTypeCombo && evt.getStateChange() == ItemEvent.SELECTED)
+        if (src == registrationTypeCombo && evt.getStateChange() == ItemEvent.SELECTED)
         {
             updateEnabledRegistrationWidgets();
+        }
+        
+        if ((src == imageNames1Combo || src == imageNames2Combo)
+                && evt.getStateChange() == ItemEvent.SELECTED)
+        {
+            updateInputImages();
+            if (this.autoUpdateCheckBox.isSelected())
+            {
+                runRegistration();
+            }
         }
     }
     
@@ -404,7 +528,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     {
         if (displayTypeCombo.getSelectedIndex() == 0)
         {
-            this.resultDisplay = new CheckerBoardDisplay(20);
+            this.resultDisplay = new CheckerBoardDisplay(50);
         }
         if (displayTypeCombo.getSelectedIndex() == 1)
         {
@@ -414,13 +538,16 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         {
             this.resultDisplay = new SumOfIntensitiesDisplay();
         }
+        
+        // updates current display
+        if (this.autoUpdateCheckBox.isSelected() && this.transform != null)
+        {
+            updateResultDisplay();
+        }
     }
     
     private void updateEnabledRegistrationWidgets()
     {
-        this.rotationAngleTextField.getDocument().removeDocumentListener(this);
-        this.scalingFactorLogTextField.getDocument().removeDocumentListener(this);
-        
         if (registrationTypeCombo.getSelectedIndex() == 0)
         {
             this.rotationAngleLabel.setEnabled(false);
@@ -433,8 +560,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         else if (registrationTypeCombo.getSelectedIndex() == 1)
         {
             this.rotationAngleLabel.setEnabled(true);
-            this.rotationAngleTextField.setText(String.format(Locale.ENGLISH, "%.2f", this.rotationAngle));
-            this.rotationAngleTextField.getDocument().addDocumentListener(this);
+            this.rotationAngleTextField.setText(doubleToString(this.rotationAngle));
             this.rotationAngleTextField.setEnabled(true);
             this.scalingFactorLogLabel.setEnabled(false);
             this.scalingFactorLogTextField.setText("0.0");
@@ -443,57 +569,54 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         else if (registrationTypeCombo.getSelectedIndex() == 2)
         {
             this.rotationAngleLabel.setEnabled(true);
-            this.rotationAngleTextField.setText(String.format(Locale.ENGLISH, "%.2f", this.rotationAngle));
-            this.rotationAngleTextField.getDocument().addDocumentListener(this);
+            this.rotationAngleTextField.setText(doubleToString(this.rotationAngle));
             this.rotationAngleTextField.setEnabled(true);
             this.scalingFactorLogLabel.setEnabled(true);
-            this.scalingFactorLogTextField.setText(createLogScaleString());
-            this.scalingFactorLogTextField.getDocument().addDocumentListener(this);
+            this.scalingFactorLogTextField.setText(doubleToString(this.logScaling));
             this.scalingFactorLogTextField.setEnabled(true);
         }
     }
     
-    private String createLogScaleString()
-    {
-        return String.format(Locale.ENGLISH, "%.2f", this.logScaling);
-    }
+    
+    // ====================================================
+    // Implementation of KeyListener (for Text fields)
     
     @Override
-    public void insertUpdate(DocumentEvent evt)
+    public void keyTyped(KeyEvent evt)
     {
-        processTextUpdate(evt);
+        if (evt.getSource() instanceof JTextField)
+        {
+            processTextUpdate((JTextField) evt.getSource());
+        }
     }
 
     @Override
-    public void removeUpdate(DocumentEvent evt)
+    public void keyPressed(KeyEvent e)
     {
-        processTextUpdate(evt);
     }
 
     @Override
-    public void changedUpdate(DocumentEvent evt)
+    public void keyReleased(KeyEvent e)
     {
-        processTextUpdate(evt);
     }
     
-    private void processTextUpdate(DocumentEvent evt)
+    private void processTextUpdate(JTextField textField)
     {
         try
         {
-            if(evt.getDocument() == xShiftTextField.getDocument())
+            if(textField == xShiftTextField)
             {
                 this.xShift = Double.parseDouble(xShiftTextField.getText());
             }
-            else if(evt.getDocument() == yShiftTextField.getDocument())
+            else if(textField == yShiftTextField)
             {
                 this.yShift = Double.parseDouble(yShiftTextField.getText());
             }
-            else if(evt.getDocument() == rotationAngleTextField.getDocument())
+            else if(textField == rotationAngleTextField)
             {
                 this.rotationAngle = Double.parseDouble(rotationAngleTextField.getText());
-                IJ.log("set angle to " + this.rotationAngle);
             }
-            else if(evt.getDocument() == scalingFactorLogTextField.getDocument())
+            else if(textField == scalingFactorLogTextField)
             {
                 this.logScaling = Double.parseDouble(scalingFactorLogTextField.getText());
             }
@@ -505,9 +628,23 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         
         if (this.autoUpdateCheckBox.isSelected())
         {
-            IJ.log("(auto-update)");
             runRegistration();
         }
     }
 
+    private static final String doubleToString(double value)
+    {
+        return String.format(Locale.ENGLISH, "%.2f", value);
+    }
+
+    
+    // ====================================================
+    // Specialization of the parent methods
+    
+    /** Overrides close() in PlugInFrame. */
+    public void close()
+    {
+        super.close();
+    }
+    
 }
