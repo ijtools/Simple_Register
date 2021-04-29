@@ -25,6 +25,7 @@ import inrae.bibs.register.Point2D;
 import inrae.bibs.register.Registration;
 import inrae.bibs.register.Transform2D;
 import inrae.bibs.register.display.CheckerBoardDisplay;
+import inrae.bibs.register.display.DifferenceOfIntensitiesDisplay;
 import inrae.bibs.register.display.MagentaGreenDisplay;
 import inrae.bibs.register.display.SumOfIntensitiesDisplay;
 import inrae.bibs.register.transforms.CenteredMotion2D;
@@ -145,6 +146,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         this.displayTypeCombo.addItem("Checkerboard");
         this.displayTypeCombo.addItem("Magenta-Green");
         this.displayTypeCombo.addItem("Sum of intensities");
+        this.displayTypeCombo.addItem("Difference");
         this.displayTypeCombo.setSelectedIndex(1);
         this.displayTypeCombo.addItemListener(this);
         
@@ -155,27 +157,22 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         this.registrationTypeCombo.addItemListener(this);
         
         this.xShiftLabel = new JLabel("Shift X (pixels):");
-        this.xShiftTextField = new JTextField("0", 10);
-        this.xShiftTextField.addActionListener(this);
-        this.xShiftTextField.addKeyListener(this);
+        this.xShiftTextField = createNumericTextField(0.0);
         this.xShiftDec = createPlusMinusButton("-");
         this.xShiftInc = createPlusMinusButton("+");
         
         this.yShiftLabel = new JLabel("Shift Y (pixels):");
-        this.yShiftTextField = new JTextField("0", 10);
-        this.yShiftTextField.addKeyListener(this);
+        this.yShiftTextField = createNumericTextField(0.0);
         this.yShiftDec = createPlusMinusButton("-");
         this.yShiftInc = createPlusMinusButton("+");
 
         this.rotationAngleLabel = new JLabel("Rotation angle (degrees):");
-        this.rotationAngleTextField = new JTextField("0", 10);
-        this.rotationAngleTextField.addKeyListener(this);
+        this.rotationAngleTextField = createNumericTextField(0.0);
         this.rotAngleDec = createPlusMinusButton("-");
         this.rotAngleInc = createPlusMinusButton("+");
 
         this.scalingFactorLogLabel = new JLabel("Log_2 of scaling factor:");
-        this.scalingFactorLogTextField = new JTextField("0", 10);
-        this.scalingFactorLogTextField.addKeyListener(this);
+        this.scalingFactorLogTextField = createNumericTextField(0.0);
         this.scalingDec = createPlusMinusButton("-");
         this.scalingInc = createPlusMinusButton("+");
         
@@ -184,6 +181,14 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         
         this.runButton = new JButton("Run");
         this.runButton.addActionListener(this);
+    }
+    
+    private JTextField createNumericTextField(double initialValue)
+    {
+        String text = doubleToString(initialValue);
+        JTextField textField = new JTextField(text, 10);
+        textField.addKeyListener(this);
+        return textField;
     }
     
     private JButton createPlusMinusButton(String label)
@@ -526,17 +531,22 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     private void updateResultDisplayType()
     {
-        if (displayTypeCombo.getSelectedIndex() == 0)
+        switch (displayTypeCombo.getSelectedIndex())
         {
+        case 0:
             this.resultDisplay = new CheckerBoardDisplay(50);
-        }
-        if (displayTypeCombo.getSelectedIndex() == 1)
-        {
+            break;
+        case 1:
             this.resultDisplay = new MagentaGreenDisplay();
-        }
-        if (displayTypeCombo.getSelectedIndex() == 2)
-        {
+            break;
+        case 2:
             this.resultDisplay = new SumOfIntensitiesDisplay();
+            break;
+        case 3:
+            this.resultDisplay = new DifferenceOfIntensitiesDisplay();
+            break;
+        default:
+            throw new RuntimeException("Ooops, unknown type of display type...");
         }
         
         // updates current display
@@ -629,6 +639,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         if (this.autoUpdateCheckBox.isSelected())
         {
             runRegistration();
+            textField.requestFocus();
         }
     }
 
