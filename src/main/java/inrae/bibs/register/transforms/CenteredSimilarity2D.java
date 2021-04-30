@@ -15,13 +15,13 @@ import inrae.bibs.register.Transform2D;
  */
 public class CenteredSimilarity2D implements Transform2D
 {
-    double centerX = 0.0;
-    double centerY = 0.0;
+    public double centerX = 0.0;
+    public double centerY = 0.0;
     
-    double shiftX = 0.0;
-    double shiftY = 0.0;
-    double angleDeg = 0.0;
-    double logScaling = 0.0;
+    public double shiftX = 0.0;
+    public double shiftY = 0.0;
+    public double angleDeg = 0.0;
+    public double logScaling = 0.0;
     
 
     public CenteredSimilarity2D(Point2D center, double logScaling, double angleInDegrees, double tx, double ty)

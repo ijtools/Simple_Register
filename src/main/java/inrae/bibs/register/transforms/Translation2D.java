@@ -14,8 +14,8 @@ import inrae.bibs.register.Transform2D;
  */
 public class Translation2D implements Transform2D
 {
-    double shiftX = 0.0;
-    double shiftY = 0.0;
+    public double shiftX = 0.0;
+    public double shiftY = 0.0;
     
     public Translation2D(double tx, double ty)
     {

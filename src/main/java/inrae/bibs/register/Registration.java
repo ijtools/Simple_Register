@@ -3,10 +3,16 @@
  */
 package inrae.bibs.register;
 
-import ij.IJ;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import com.google.gson.stream.JsonWriter;
+
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
-import inrae.bibs.register.transforms.Translation2D;
+import inrae.bibs.register.io.JsonRegistrationWriter;
 
 /**
  * Utility methods for registration.
@@ -61,19 +67,19 @@ public class Registration
         }
         return result;
     }
-    
-    public final static void main(String... args)
+
+    public static final void saveRegistration(File file,
+            ImagePlus referenceImage, ImagePlus movingImage,
+            Transform2D transformModel) throws IOException
     {
-        System.out.println("hello!");
-        
-        String fileName = Registration.class.getResource("/sample_images/wheatGrain_tomo_180_1_z630.tif").getFile();
-        ImagePlus imagePlus = IJ.openImage(fileName);
-        ImageProcessor image = imagePlus.getProcessor();
-        
-        Transform2D transfo = new Translation2D(50, 40);   
-        ImageProcessor transformed = Registration.computeTransformedImage(image, transfo, image);
-        ImagePlus transformedPlus = new ImagePlus("Transformed", transformed);
-        transformedPlus.show();
-        
+        FileWriter fileWriter = new FileWriter(file.getAbsoluteFile());
+        JsonWriter jsonWriter = new JsonWriter(new PrintWriter(fileWriter));
+        jsonWriter.setIndent("  ");
+
+        JsonRegistrationWriter writer = new JsonRegistrationWriter(jsonWriter);
+        writer.writeRegistrationInfo(referenceImage, movingImage, transformModel);
+
+        fileWriter.close();
     }
+    
 }

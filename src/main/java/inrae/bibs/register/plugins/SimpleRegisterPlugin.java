@@ -3,14 +3,16 @@
  */
 package inrae.bibs.register.plugins;
 
-import java.awt.BorderLayout;
-import java.awt.FlowLayout;
-import java.awt.GridLayout;
+import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
+import java.io.IOException;
 import java.util.Locale;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileFilter;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -86,6 +88,12 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     
     // ====================================================
+    // Menu items
+    
+    MenuItem saveRegistrationItem;
+    
+    
+    // ====================================================
     // GUI Widgets
     
     JComboBox<String> imageNames1Combo;
@@ -118,6 +126,26 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     
     ImageWindow resultFrame = null;
     
+    JFileChooser saveWindow;
+    
+    /**
+     * Utility file filter customized for this plugin. 
+     */
+    FileFilter regFileFilter = new FileFilter() 
+    {
+        @Override
+        public boolean accept(File f)
+        {
+            return f.getName().endsWith("_reg.json");
+        }
+
+        @Override
+        public String getDescription()
+        {
+            return "Registration file (*_reg.json)";
+        }
+    };
+
     
     // ====================================================
     // Constructor
@@ -126,6 +154,8 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
     {
         super("SimpleRegister");
         
+        createMenu();
+        
         setupWidgets();
         setupLayout();
         
@@ -133,7 +163,22 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         
         GUI.center(this);
         setVisible(true);
-    }   
+    }
+
+    private void createMenu()
+    {
+        // init menu items
+        saveRegistrationItem = new MenuItem("Save Registration...");
+        saveRegistrationItem.addActionListener(this);
+
+        MenuBar menuBar = new MenuBar();
+        Menu fileMenu = new Menu("File");
+        fileMenu.add(saveRegistrationItem);
+        
+        menuBar.add(fileMenu);
+        this.setMenuBar(menuBar);
+    }
+
     
     private void setupWidgets()
     {
@@ -429,7 +474,46 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
         this.resultFrame.setVisible(true);
     }
     
+    /**
+     * Callback for the "Save Registration" menu item.
+     */
+    public void saveRegistration()
+    {
+        // create file dialog using last save path
+        String imageName = referenceImagePlus.getShortTitle();
+        saveWindow = new JFileChooser(new File(imageName + ".json"));
+        saveWindow.setDialogTitle("Save Registration Data");
+        saveWindow.addChoosableFileFilter(regFileFilter);
+        saveWindow.addChoosableFileFilter(new FileNameExtensionFilter("JSON files (*.json)", "json"));
+        saveWindow.addChoosableFileFilter(new FileNameExtensionFilter("All files (*.*)", "*"));
+        saveWindow.setFileFilter(regFileFilter);
+
+        // Open dialog to choose the file
+        int ret = saveWindow.showSaveDialog(this);
+        if (ret != JFileChooser.APPROVE_OPTION) 
+        {
+            return;
+        }
+
+        // Check the chosen file is valid
+        File file = saveWindow.getSelectedFile();
+        if (!file.getName().endsWith(".json"))
+        {
+            File parent = file.getParentFile();
+            file = new File(parent, file.getName() + ".json");
+        }
         
+        try 
+        {
+            Registration.saveRegistration(file, referenceImagePlus, movingImagePlus, transform);
+        }
+        catch (IOException ex)
+        {
+            throw new RuntimeException(ex);
+        }
+    }
+    
+    
     // ====================================================
     // Implementation of ActionListener (for buttons)
     
@@ -487,6 +571,12 @@ public class SimpleRegisterPlugin extends PlugInFrame implements ActionListener,
             // remove the value 0.01 from the log of the scaling factor
             this.logScaling = this.logScaling - 0.01;
             scalingFactorLogTextField.setText(doubleToString(this.logScaling));
+        }
+        else if (evt.getSource() == saveRegistrationItem)
+        {
+            // save registration...
+            IJ.log("save registration");
+            saveRegistration();
         }
         else
         {
