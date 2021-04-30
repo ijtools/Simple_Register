@@ -13,7 +13,7 @@ http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<groupId>inrae.bibs</groupId>
 	<artifactId>Simple_Register</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.1.0</version>
 
 	<name>plugins/Simple_Register.jar</name>
 	<description>Simple GUI for registration of images</description>
