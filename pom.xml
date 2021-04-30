@@ -12,10 +12,10 @@ http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	</parent>
 
 	<groupId>inrae.bibs</groupId>
-	<artifactId>Register_GUI</artifactId>
+	<artifactId>Simple_Register</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 
-	<name>plugins/Register_GUI.jar</name>
+	<name>plugins/Simple_Register.jar</name>
 	<description>Simple GUI for registration of images</description>
 
 	<dependencies>
