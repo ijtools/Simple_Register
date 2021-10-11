@@ -9,10 +9,13 @@ import java.io.PrintWriter;
 import com.google.gson.stream.JsonWriter;
 
 import ij.ImagePlus;
+import inrae.bibs.register.Transform;
 import inrae.bibs.register.Transform2D;
+import inrae.bibs.register.Transform3D;
 import inrae.bibs.register.transforms.CenteredMotion2D;
 import inrae.bibs.register.transforms.CenteredSimilarity2D;
 import inrae.bibs.register.transforms.Translation2D;
+import inrae.bibs.register.transforms.Translation3D;
 
 /**
  * 
@@ -63,7 +66,7 @@ public class JsonRegistrationWriter
 
     
     public void writeRegistrationInfo(ImagePlus referenceImage, ImagePlus movingImage,
-            Transform2D transformModel) throws IOException
+            Transform transformModel) throws IOException
     {
         writer.beginObject();
         writeString("type", "Registration");
@@ -113,7 +116,23 @@ public class JsonRegistrationWriter
         writer.endObject();
     }
     
-    public void writeTransform(Transform2D transform) throws IOException
+    public void writeTransform(Transform transform) throws IOException
+    {
+        if (transform instanceof Transform2D)
+        {
+            writeTransform2d((Transform2D) transform); 
+        }
+        else if (transform instanceof Transform3D)
+        {
+            writeTransform3d((Transform3D) transform); 
+        }
+        else
+        {
+            throw new RuntimeException("Unknown type of transform: " + transform.getClass().getName());
+        }
+    }
+    
+    public void writeTransform2d(Transform2D transform) throws IOException
     {
         writer.beginObject();
         writeString("className", transform.getClass().getName());
@@ -144,6 +163,25 @@ public class JsonRegistrationWriter
             writeValue("logScaling", simil.logScaling);
             writeValue("shiftX", simil.shiftX);
             writeValue("shiftY", simil.shiftY);
+        }
+        else
+        {
+            throw new RuntimeException("Unknown transform type: " + transform.getClass().getName());
+        }
+        writer.endObject();
+    }
+    
+    public void writeTransform3d(Transform3D transform) throws IOException
+    {
+        writer.beginObject();
+        writeString("className", transform.getClass().getName());
+        if (transform instanceof Translation3D)
+        {
+            Translation3D trans = (Translation3D) transform;
+            writeString("type", "Translation3D");
+            writeValue("shiftX", trans.shiftX);
+            writeValue("shiftY", trans.shiftY);
+            writeValue("shiftZ", trans.shiftZ);
         }
         else
         {

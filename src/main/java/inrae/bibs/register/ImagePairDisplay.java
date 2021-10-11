@@ -1,5 +1,6 @@
 package inrae.bibs.register;
 
+import ij.ImageStack;
 import ij.process.ImageProcessor;
 
 /**
@@ -12,4 +13,6 @@ import ij.process.ImageProcessor;
 public interface ImagePairDisplay
 {
     public ImageProcessor compute(ImageProcessor image1, ImageProcessor image2);
+    
+    public ImageStack compute(ImageStack image1, ImageStack image2);
 }

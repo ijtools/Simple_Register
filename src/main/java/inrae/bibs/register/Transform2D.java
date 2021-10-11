@@ -8,7 +8,7 @@ package inrae.bibs.register;
  *  
  * @author dlegland
  */
-public interface Transform2D
+public interface Transform2D extends Transform
 {
     public Point2D transform(Point2D point);
 
