@@ -3,6 +3,7 @@
  */
 package inrae.bibs.register.display;
 
+import ij.IJ;
 import ij.ImageStack;
 import ij.process.ImageProcessor;
 import inrae.bibs.register.ImagePairDisplay;
@@ -63,11 +64,13 @@ public class DifferenceOfIntensitiesDisplay implements ImagePairDisplay
         // iterate on slices
         for (int z = 0; z < sizeZ; z++)
         {
+            IJ.showProgress(z, sizeZ);
             ImageProcessor slice1 = image1.getProcessor(z + 1);
             ImageProcessor slice2 = image2.getProcessor(z + 1);
             ImageProcessor resSlice = this.compute(slice1, slice2);
             result.setProcessor(resSlice, z + 1);
         }
+        IJ.showProgress(sizeZ, sizeZ);
         
         return result;
     }

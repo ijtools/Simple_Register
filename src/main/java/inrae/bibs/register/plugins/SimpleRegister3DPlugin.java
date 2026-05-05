@@ -29,6 +29,7 @@ import inrae.bibs.register.display.CheckerBoardDisplay;
 import inrae.bibs.register.display.DifferenceOfIntensitiesDisplay;
 import inrae.bibs.register.display.MagentaGreenDisplay;
 import inrae.bibs.register.display.SumOfIntensitiesDisplay;
+import inrae.bibs.register.transforms.AffineTransform3D;
 import inrae.bibs.register.transforms.Translation3D;
 
 /**
@@ -115,9 +116,20 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
     JTextField zShiftTextField;
     JButton zShiftDec;
     JButton zShiftInc;
+    JLabel rotationXAngleLabel;
+    JTextField rotationXAngleTextField;
+    JButton rotXAngleDec;
+    JButton rotXAngleInc;
+    JLabel rotationYAngleLabel;
+    JTextField rotationYAngleTextField;
+    JButton rotYAngleDec;
+    JButton rotYAngleInc;
+    JLabel rotationZAngleLabel;
+    JTextField rotationZAngleTextField;
+    JButton rotZAngleDec;
+    JButton rotZAngleInc;
     JLabel rotationAngleLabel;
     JTextField rotationAngleTextField;
-    // TODO: add 3D rotation text fields
     JButton rotAngleDec;
     JButton rotAngleInc;
     JLabel scalingFactorLogLabel;
@@ -202,7 +214,7 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
         
         this.registrationTypeCombo = new JComboBox<String>();
         this.registrationTypeCombo.addItem("Translation");
-//        this.registrationTypeCombo.addItem("Motion (Translation+Rotation)");
+        this.registrationTypeCombo.addItem("Motion (Translation+Rotation)");
 //        this.registrationTypeCombo.addItem("Similarity (Tr.+Rot.+Scaling)");
         this.registrationTypeCombo.addItemListener(this);
         
@@ -221,10 +233,20 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
         this.zShiftDec = createPlusMinusButton("-");
         this.zShiftInc = createPlusMinusButton("+");
 
-        this.rotationAngleLabel = new JLabel("Rotation angle (degrees):");
-        this.rotationAngleTextField = createNumericTextField(0.0);
-        this.rotAngleDec = createPlusMinusButton("-");
-        this.rotAngleInc = createPlusMinusButton("+");
+        this.rotationXAngleLabel = new JLabel("Rotation X angle (degrees):");
+        this.rotationXAngleTextField = createNumericTextField(0.0);
+        this.rotXAngleDec = createPlusMinusButton("-");
+        this.rotXAngleInc = createPlusMinusButton("+");
+
+        this.rotationYAngleLabel = new JLabel("Rotation Y angle (degrees):");
+        this.rotationYAngleTextField = createNumericTextField(0.0);
+        this.rotYAngleDec = createPlusMinusButton("-");
+        this.rotYAngleInc = createPlusMinusButton("+");
+
+        this.rotationZAngleLabel = new JLabel("Rotation Z angle (degrees):");
+        this.rotationZAngleTextField = createNumericTextField(0.0);
+        this.rotZAngleDec = createPlusMinusButton("-");
+        this.rotZAngleInc = createPlusMinusButton("+");
 
         this.scalingFactorLogLabel = new JLabel("Log_2 of scaling factor:");
         this.scalingFactorLogTextField = createNumericTextField(0.0);
@@ -272,7 +294,7 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
         displayOptionsPanel.add(this.displayTypeCombo);
         
         JPanel registrationPanel = GuiHelper.createOptionsPanel("Registration");
-        registrationPanel.setLayout(new GridLayout(6, 2));
+        registrationPanel.setLayout(new GridLayout(8, 2));
         registrationPanel.add(new JLabel("Registration Type:"));
         registrationPanel.add(registrationTypeCombo);
         registrationPanel.add(xShiftLabel);
@@ -281,8 +303,12 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
         registrationPanel.add(createPanel(yShiftTextField, yShiftDec, yShiftInc));
         registrationPanel.add(zShiftLabel);
         registrationPanel.add(createPanel(zShiftTextField, zShiftDec, zShiftInc));
-        registrationPanel.add(rotationAngleLabel);
-        registrationPanel.add(createPanel(rotationAngleTextField, rotAngleDec, rotAngleInc));
+        registrationPanel.add(rotationXAngleLabel);
+        registrationPanel.add(createPanel(rotationXAngleTextField, rotXAngleDec, rotXAngleInc));
+        registrationPanel.add(rotationYAngleLabel);
+        registrationPanel.add(createPanel(rotationYAngleTextField, rotYAngleDec, rotYAngleInc));
+        registrationPanel.add(rotationZAngleLabel);
+        registrationPanel.add(createPanel(rotationZAngleTextField, rotZAngleDec, rotZAngleInc));
         registrationPanel.add(scalingFactorLogLabel);
         registrationPanel.add(createPanel(scalingFactorLogTextField, scalingDec, scalingInc));
         updateEnabledRegistrationWidgets();
@@ -305,7 +331,6 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
         panel.add(button2);
         return panel;
     }
-
 
     
     // ====================================================
@@ -399,7 +424,9 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
             // parse rotation angle (degrees)
             if (this.registrationTypeCombo.getSelectedIndex() > 0)
             {
-                this.rotationAngle1 = Double.parseDouble(rotationAngleTextField.getText());
+                this.rotationAngle1 = Double.parseDouble(rotationXAngleTextField.getText());
+                this.rotationAngle2 = Double.parseDouble(rotationYAngleTextField.getText());
+                this.rotationAngle3 = Double.parseDouble(rotationZAngleTextField.getText());
             }
 
             // parse scaling factor
@@ -428,14 +455,20 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
             this.transform = new Translation3D(this.xShift, this.yShift, this.zShift);
             break;
             
-//        case 1:
-//        {
-//            double sizeX = this.referenceImagePlus.getWidth();
-//            double sizeY = this.referenceImagePlus.getHeight();
-//            Point2D center = new Point2D(sizeX/2, sizeY/2);
-//            this.transform = new CenteredMotion2D(center, this.rotationAngle, this.xShift, this.yShift);
-//            break;
-//        }
+        case 1:
+        {
+            double sizeX = this.referenceImagePlus.getWidth();
+            double sizeY = this.referenceImagePlus.getHeight();
+            double sizeZ = this.referenceImagePlus.getStackSize();
+            AffineTransform3D tra1 = AffineTransform3D.createTranslation(-sizeX/2, -sizeY/2, -sizeZ/2); 
+            AffineTransform3D rot1 = AffineTransform3D.createRotationOx(Math.toRadians(this.rotationAngle1));
+            AffineTransform3D rot2 = AffineTransform3D.createRotationOy(Math.toRadians(this.rotationAngle2));
+            AffineTransform3D rot3 = AffineTransform3D.createRotationOz(Math.toRadians(this.rotationAngle3));
+            AffineTransform3D tra2 = AffineTransform3D.createTranslation(sizeX/2, sizeY/2, sizeZ/2); 
+            AffineTransform3D tra3 = AffineTransform3D.createTranslation(this.xShift, this.yShift, this.zShift);
+            this.transform = tra3.compose(tra2).compose(rot3).compose(rot2).compose(rot1).compose(tra1);
+            break;
+        }
 //        case 2:
 //        {
 //            double sizeX = this.referenceImagePlus.getWidth();
@@ -585,17 +618,41 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
             this.zShift = this.zShift - 1.0;
             zShiftTextField.setText(doubleToString(this.zShift));
         }
-        else if (evt.getSource() == rotAngleInc)
+        else if (evt.getSource() == rotXAngleInc)
         {
             // add the value 1 (degree) to rotation angle
             this.rotationAngle1 = this.rotationAngle1 + 1.0;
-            rotationAngleTextField.setText(doubleToString(this.rotationAngle1));
+            rotationXAngleTextField.setText(doubleToString(this.rotationAngle1));
         }
-        else if (evt.getSource() == rotAngleDec)
+        else if (evt.getSource() == rotXAngleDec)
         {
             // remove the value 1 (degree) from rotation angle
             this.rotationAngle1 = this.rotationAngle1 - 1.0;
-            rotationAngleTextField.setText(doubleToString(this.rotationAngle1));
+            rotationXAngleTextField.setText(doubleToString(this.rotationAngle1));
+        }
+        else if (evt.getSource() == rotYAngleInc)
+        {
+            // add the value 1 (degree) to rotation angle
+            this.rotationAngle2 = this.rotationAngle2 + 1.0;
+            rotationYAngleTextField.setText(doubleToString(this.rotationAngle2));
+        }
+        else if (evt.getSource() == rotYAngleDec)
+        {
+            // remove the value 1 (degree) from rotation angle
+            this.rotationAngle2 = this.rotationAngle2 - 1.0;
+            rotationYAngleTextField.setText(doubleToString(this.rotationAngle2));
+        }
+        else if (evt.getSource() == rotZAngleInc)
+        {
+            // add the value 1 (degree) to rotation angle
+            this.rotationAngle3 = this.rotationAngle3 + 1.0;
+            rotationZAngleTextField.setText(doubleToString(this.rotationAngle3));
+        }
+        else if (evt.getSource() == rotZAngleDec)
+        {
+            // remove the value 1 (degree) from rotation angle
+            this.rotationAngle3 = this.rotationAngle3 - 1.0;
+            rotationZAngleTextField.setText(doubleToString(this.rotationAngle3));
         }
         else if (evt.getSource() == scalingInc)
         {
@@ -687,27 +744,45 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
     {
         if (registrationTypeCombo.getSelectedIndex() == 0)
         {
-            this.rotationAngleLabel.setEnabled(false);
-            this.rotationAngleTextField.setText("0.0");
-            this.rotationAngleTextField.setEnabled(false);
+            this.rotationXAngleLabel.setEnabled(false);
+            this.rotationXAngleTextField.setText("0.0");
+            this.rotationXAngleTextField.setEnabled(false);
+            this.rotationYAngleLabel.setEnabled(false);
+            this.rotationYAngleTextField.setText("0.0");
+            this.rotationYAngleTextField.setEnabled(false);
+            this.rotationZAngleLabel.setEnabled(false);
+            this.rotationZAngleTextField.setText("0.0");
+            this.rotationZAngleTextField.setEnabled(false);
             this.scalingFactorLogLabel.setEnabled(false);
             this.scalingFactorLogTextField.setText("0.0");
             this.scalingFactorLogTextField.setEnabled(false);
         }
         else if (registrationTypeCombo.getSelectedIndex() == 1)
         {
-            this.rotationAngleLabel.setEnabled(true);
-            this.rotationAngleTextField.setText(doubleToString(this.rotationAngle1));
-            this.rotationAngleTextField.setEnabled(true);
+            this.rotationXAngleLabel.setEnabled(true);
+            this.rotationXAngleTextField.setText(doubleToString(this.rotationAngle1));
+            this.rotationXAngleTextField.setEnabled(true);
+            this.rotationYAngleLabel.setEnabled(true);
+            this.rotationYAngleTextField.setText(doubleToString(this.rotationAngle2));
+            this.rotationYAngleTextField.setEnabled(true);
+            this.rotationZAngleLabel.setEnabled(true);
+            this.rotationZAngleTextField.setText(doubleToString(this.rotationAngle3));
+            this.rotationZAngleTextField.setEnabled(true);
             this.scalingFactorLogLabel.setEnabled(false);
             this.scalingFactorLogTextField.setText("0.0");
             this.scalingFactorLogTextField.setEnabled(false);
         }
         else if (registrationTypeCombo.getSelectedIndex() == 2)
         {
-            this.rotationAngleLabel.setEnabled(true);
-            this.rotationAngleTextField.setText(doubleToString(this.rotationAngle1));
-            this.rotationAngleTextField.setEnabled(true);
+            this.rotationXAngleLabel.setEnabled(true);
+            this.rotationXAngleTextField.setText(doubleToString(this.rotationAngle1));
+            this.rotationXAngleTextField.setEnabled(true);
+            this.rotationYAngleLabel.setEnabled(true);
+            this.rotationYAngleTextField.setText(doubleToString(this.rotationAngle2));
+            this.rotationYAngleTextField.setEnabled(true);
+            this.rotationZAngleLabel.setEnabled(true);
+            this.rotationZAngleTextField.setText(doubleToString(this.rotationAngle3));
+            this.rotationZAngleTextField.setEnabled(true);
             this.scalingFactorLogLabel.setEnabled(true);
             this.scalingFactorLogTextField.setText(doubleToString(this.logScaling));
             this.scalingFactorLogTextField.setEnabled(true);
@@ -753,9 +828,17 @@ public class SimpleRegister3DPlugin extends PlugInFrame implements ActionListene
             {
                 this.zShift = Double.parseDouble(zShiftTextField.getText());
             }
-            else if(textField == rotationAngleTextField)
+            else if(textField == rotationXAngleTextField)
             {
-                this.rotationAngle1 = Double.parseDouble(rotationAngleTextField.getText());
+                this.rotationAngle1 = Double.parseDouble(rotationXAngleTextField.getText());
+            }
+            else if(textField == rotationYAngleTextField)
+            {
+                this.rotationAngle2 = Double.parseDouble(rotationYAngleTextField.getText());
+            }
+            else if(textField == rotationZAngleTextField)
+            {
+                this.rotationAngle3 = Double.parseDouble(rotationZAngleTextField.getText());
             }
             else if(textField == scalingFactorLogTextField)
             {

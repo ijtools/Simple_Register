@@ -12,8 +12,10 @@ import ij.ImagePlus;
 import inrae.bibs.register.Transform;
 import inrae.bibs.register.Transform2D;
 import inrae.bibs.register.Transform3D;
+import inrae.bibs.register.transforms.AffineTransform3D;
 import inrae.bibs.register.transforms.CenteredMotion2D;
 import inrae.bibs.register.transforms.CenteredSimilarity2D;
+import inrae.bibs.register.transforms.MatrixAffineTransform3D;
 import inrae.bibs.register.transforms.Translation2D;
 import inrae.bibs.register.transforms.Translation3D;
 
@@ -182,6 +184,18 @@ public class JsonRegistrationWriter
             writeValue("shiftX", trans.shiftX);
             writeValue("shiftY", trans.shiftY);
             writeValue("shiftZ", trans.shiftZ);
+        }
+        else if (transform instanceof AffineTransform3D || transform instanceof MatrixAffineTransform3D)
+        {
+            AffineTransform3D affine = (AffineTransform3D) transform;
+            double[][] mat = affine.affineMatrix();
+            writeString("type", "AffineTransform3D");
+            writer.name("params");
+            writer.beginArray();
+            writer.value(mat[0][0]).value(mat[0][1]).value(mat[0][2]).value(mat[0][3]);
+            writer.value(mat[1][0]).value(mat[1][1]).value(mat[1][2]).value(mat[1][3]);
+            writer.value(mat[2][0]).value(mat[2][1]).value(mat[2][2]).value(mat[2][3]);
+            writer.endArray();
         }
         else
         {
