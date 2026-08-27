@@ -31,6 +31,7 @@ import inrae.bibs.register.Transform2D;
 import inrae.bibs.register.display.CheckerBoardDisplay;
 import inrae.bibs.register.display.DifferenceOfIntensitiesDisplay;
 import inrae.bibs.register.display.MagentaGreenDisplay;
+import inrae.bibs.register.display.MaxIntensityDisplay;
 import inrae.bibs.register.display.SumOfIntensitiesDisplay;
 import inrae.bibs.register.transforms.CenteredMotion2D;
 import inrae.bibs.register.transforms.CenteredSimilarity2D;
@@ -226,6 +227,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         this.displayTypeCombo.addItem("Checkerboard");
         this.displayTypeCombo.addItem("Magenta-Green");
         this.displayTypeCombo.addItem("Sum of intensities");
+        this.displayTypeCombo.addItem("Max intensity");
         this.displayTypeCombo.addItem("Difference");
         this.displayTypeCombo.setSelectedIndex(1);
         this.displayTypeCombo.addItemListener(evt -> {
@@ -660,6 +662,9 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
             this.resultDisplay = new SumOfIntensitiesDisplay();
             break;
         case 3:
+            this.resultDisplay = new MaxIntensityDisplay();
+            break;
+        case 4:
             this.resultDisplay = new DifferenceOfIntensitiesDisplay();
             break;
         default:
