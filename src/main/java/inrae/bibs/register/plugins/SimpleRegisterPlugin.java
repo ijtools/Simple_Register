@@ -8,7 +8,6 @@ import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Locale;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -24,6 +23,7 @@ import ij.plugin.frame.PlugInFrame;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import inrae.bibs.gui.GuiHelper;
+import inrae.bibs.gui.widget.NumericValueTextIncDecWidget;
 import inrae.bibs.register.ImagePairDisplay;
 import inrae.bibs.register.Point2D;
 import inrae.bibs.register.Registration;
@@ -43,7 +43,7 @@ import inrae.bibs.register.transforms.Translation2D;
  * @author dlegland
  *
  */
-public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
+public class SimpleRegisterPlugin extends PlugInFrame // implements KeyListener
 {
     // ====================================================
     // Static fields
@@ -117,21 +117,13 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
     JComboBox<String> registrationTypeCombo;
 
     JLabel xShiftLabel;
-    JTextField xShiftTextField;
-    JButton xShiftDec;
-    JButton xShiftInc;
+    NumericValueTextIncDecWidget xShiftWidget;
     JLabel yShiftLabel;
-    JButton yShiftDec;
-    JButton yShiftInc;
-    JTextField yShiftTextField;
+    NumericValueTextIncDecWidget yShiftWidget;
     JLabel rotationAngleLabel;
-    JTextField rotationAngleTextField;
-    JButton rotAngleDec;
-    JButton rotAngleInc;
+    NumericValueTextIncDecWidget rotationAngleWidget;
     JLabel logScalingLabel;
-    JTextField logScalingTextField;
-    JButton scalingDec;
-    JButton scalingInc;
+    NumericValueTextIncDecWidget logScalingWidget;
     
     JCheckBox autoUpdateCheckBox;
     JButton runButton;
@@ -258,56 +250,40 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         });
 
         this.xShiftLabel = new JLabel("Shift X (pixels):");
-        this.xShiftTextField = createNumericTextField(0.0);
-        this.xShiftDec = createPlusMinusButton("-", evt -> {
-            // remove the value 1 from x shift
-            this.xShift = this.xShift - 1.0;
-            xShiftTextField.setText(doubleToString(this.xShift));
-        });
-        this.xShiftInc = createPlusMinusButton("+", evt -> {
-            // add the value 1 to x shift
-            this.xShift = this.xShift + 1.0;
-            xShiftTextField.setText(doubleToString(this.xShift));
+        this.xShiftWidget = new NumericValueTextIncDecWidget(0.0, 1.0);
+        this.xShiftWidget.addWidgetListener(evt -> {
+            if (this.autoUpdateCheckBox.isSelected())
+            {
+                runRegistration();
+            }
         });
         
         this.yShiftLabel = new JLabel("Shift Y (pixels):");
-        this.yShiftTextField = createNumericTextField(0.0);
-        this.yShiftDec = createPlusMinusButton("-", evt -> {
-            // remove the value 1 from x shift
-            this.yShift = this.yShift - 1.0;
-            yShiftTextField.setText(doubleToString(this.yShift));
-        });
-        this.yShiftInc = createPlusMinusButton("+", evt -> {
-            // add the value 1 to y shift
-            this.yShift = this.yShift + 1.0;
-            yShiftTextField.setText(doubleToString(this.yShift));
+        this.yShiftWidget = new NumericValueTextIncDecWidget(0.0, 1.0);
+        this.yShiftWidget.addWidgetListener(evt -> {
+            if (this.autoUpdateCheckBox.isSelected())
+            {
+                runRegistration();
+            }
         });
 
         this.rotationAngleLabel = new JLabel("Rotation angle (degrees):");
-        this.rotationAngleTextField = createNumericTextField(0.0);
-        this.rotAngleDec = createPlusMinusButton("-", evt -> {
-            // remove the value 1 (degree) from rotation angle
-            this.rotationAngle = this.rotationAngle - 1.0;
-            rotationAngleTextField.setText(doubleToString(this.rotationAngle));
-        });
-        this.rotAngleInc = createPlusMinusButton("+", evt -> {
-            // add the value 1 (degree) to rotation angle
-            this.rotationAngle = this.rotationAngle + 1.0;
-            rotationAngleTextField.setText(doubleToString(this.rotationAngle));
+        this.rotationAngleWidget = new NumericValueTextIncDecWidget(0.0, 1.0);
+        this.rotationAngleWidget.addWidgetListener(evt -> {
+            if (this.autoUpdateCheckBox.isSelected())
+            {
+                runRegistration();
+            }
         });
 
         this.logScalingLabel = new JLabel("Log_2 of scaling factor:");
-        this.logScalingTextField = createNumericTextField(0.0);
-        this.scalingDec = createPlusMinusButton("-", evt -> {
-            // remove the value 0.01 from the log of the scaling factor
-            this.logScaling = this.logScaling - 0.01;
-            logScalingTextField.setText(doubleToString(this.logScaling));
-            
-        });
-        this.scalingInc = createPlusMinusButton("+", evt -> {
-            // add the value 0.01 to the log of the scaling factor
-            this.logScaling = this.logScaling + 0.01;
-            logScalingTextField.setText(doubleToString(this.logScaling));
+        this.logScalingWidget = new NumericValueTextIncDecWidget(0.0, 0.01);
+        this.logScalingWidget.addWidgetListener(evt -> {
+            this.logScaling = logScalingWidget.getValue();
+            if (this.autoUpdateCheckBox.isSelected())
+            {
+                runRegistration();
+            }
         });
         
         this.autoUpdateCheckBox = new JCheckBox("Auto-Update", false);
@@ -324,21 +300,6 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         this.runButton.addActionListener(evt -> runRegistration());
     }
     
-    private JTextField createNumericTextField(double initialValue)
-    {
-        String text = doubleToString(initialValue);
-        JTextField textField = new JTextField(text, 10);
-        textField.addKeyListener(this);
-        return textField;
-    }
-    
-    private JButton createPlusMinusButton(String label, ActionListener lst)
-    {
-        JButton button = new JButton(label);
-        button.addActionListener(lst);
-        return button;
-    }
-
     private void setupLayout()
     {
         JPanel mainPanel = new JPanel();
@@ -363,13 +324,13 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         registrationPanel.add(new JLabel("Registration Type:"));
         registrationPanel.add(registrationTypeCombo);
         registrationPanel.add(xShiftLabel);
-        registrationPanel.add(createPanel(xShiftTextField, xShiftDec, xShiftInc));
+        registrationPanel.add(xShiftWidget.getComponent());
         registrationPanel.add(yShiftLabel);
-        registrationPanel.add(createPanel(yShiftTextField, yShiftDec, yShiftInc));
+        registrationPanel.add(yShiftWidget.getComponent());
         registrationPanel.add(rotationAngleLabel);
-        registrationPanel.add(createPanel(rotationAngleTextField, rotAngleDec, rotAngleInc));
+        registrationPanel.add(rotationAngleWidget.getComponent());
         registrationPanel.add(logScalingLabel);
-        registrationPanel.add(createPanel(logScalingTextField, scalingDec, scalingInc));
+        registrationPanel.add(logScalingWidget.getComponent());
         updateEnabledRegistrationWidgets();
         
         mainPanel.add(imagesPanel);
@@ -382,16 +343,6 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         this.add(mainPanel, BorderLayout.CENTER);
     }
     
-    private JPanel createPanel(JComponent comp, JButton button1, JButton button2)
-    {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        panel.add(comp);
-        panel.add(button1);
-        panel.add(button2);
-        return panel;
-    }
-
-
     
     // ====================================================
     // Widget call backs
@@ -477,19 +428,19 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         try 
         {
             // parse translation params
-            this.xShift = Double.parseDouble(xShiftTextField.getText());
-            this.yShift = Double.parseDouble(yShiftTextField.getText());
+            this.xShift = xShiftWidget.getValue();
+            this.yShift = yShiftWidget.getValue();
             
             // parse rotation angle (degrees)
             if (this.registrationTypeCombo.getSelectedIndex() > 0)
             {
-                this.rotationAngle = Double.parseDouble(rotationAngleTextField.getText());
+                this.rotationAngle = rotationAngleWidget.getValue();
             }
 
             // parse scaling factor
             if (this.registrationTypeCombo.getSelectedIndex() > 1)
             {
-                this.logScaling = Double.parseDouble(logScalingTextField.getText());
+                this.logScaling = logScalingWidget.getValue();
                 IJ.log("scaling factor: " + this.logScaling); 
             }
             this.validParams = true;
@@ -504,6 +455,10 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
     {
         int transfoIndex = this.registrationTypeCombo.getSelectedIndex();
         
+        double sizeX = this.referenceImagePlus.getWidth();
+        double sizeY = this.referenceImagePlus.getHeight();
+        Point2D center = new Point2D(sizeX/2, sizeY/2);
+        
         switch (transfoIndex)
         {
         case 0:
@@ -512,22 +467,16 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
             
         case 1:
         {
-            double sizeX = this.referenceImagePlus.getWidth();
-            double sizeY = this.referenceImagePlus.getHeight();
-            Point2D center = new Point2D(sizeX/2, sizeY/2);
             this.movingImageTransform = new CenteredMotion2D(center, this.rotationAngle, this.xShift, this.yShift);
             break;
         }
         case 2:
         {
-            double sizeX = this.referenceImagePlus.getWidth();
-            double sizeY = this.referenceImagePlus.getHeight();
-            Point2D center = new Point2D(sizeX/2, sizeY/2);
             this.movingImageTransform = new CenteredSimilarity2D(center, this.logScaling, this.rotationAngle, this.xShift, this.yShift);
             break;
         }
         default:
-                IJ.error("Input Error", "This transformation is not implemented");
+            IJ.error("Input Error", "This transformation is not implemented");
         }
     }
 
@@ -646,8 +595,6 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         }
     }
     
-    
-    
     private void updateResultDisplayType()
     {
         switch (displayTypeCombo.getSelectedIndex())
@@ -683,93 +630,26 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         if (registrationTypeCombo.getSelectedIndex() == 0)
         {
             this.rotationAngleLabel.setEnabled(false);
-            this.rotationAngleTextField.setText("0.0");
-            this.rotationAngleTextField.setEnabled(false);
+            this.rotationAngleLabel.setEnabled(false);
             this.logScalingLabel.setEnabled(false);
-            this.logScalingTextField.setText("0.0");
-            this.logScalingTextField.setEnabled(false);
+            this.logScalingWidget.setEnabled(false);
         }
         else if (registrationTypeCombo.getSelectedIndex() == 1)
         {
             this.rotationAngleLabel.setEnabled(true);
-            this.rotationAngleTextField.setText(doubleToString(this.rotationAngle));
-            this.rotationAngleTextField.setEnabled(true);
+            this.rotationAngleLabel.setEnabled(true);
             this.logScalingLabel.setEnabled(false);
-            this.logScalingTextField.setText("0.0");
-            this.logScalingTextField.setEnabled(false);
+            this.logScalingWidget.setEnabled(false);
         }
         else if (registrationTypeCombo.getSelectedIndex() == 2)
         {
             this.rotationAngleLabel.setEnabled(true);
-            this.rotationAngleTextField.setText(doubleToString(this.rotationAngle));
-            this.rotationAngleTextField.setEnabled(true);
+            this.rotationAngleLabel.setEnabled(true);
             this.logScalingLabel.setEnabled(true);
-            this.logScalingTextField.setText(doubleToString(this.logScaling));
-            this.logScalingTextField.setEnabled(true);
+            this.logScalingWidget.setEnabled(true);
         }
     }
     
-    
-    // ====================================================
-    // Implementation of KeyListener (for Text fields)
-    
-    @Override
-    public void keyTyped(KeyEvent evt)
-    {
-        if (evt.getSource() instanceof JTextField)
-        {
-            processTextUpdate((JTextField) evt.getSource());
-        }
-    }
-
-    @Override
-    public void keyPressed(KeyEvent e)
-    {
-    }
-
-    @Override
-    public void keyReleased(KeyEvent e)
-    {
-    }
-    
-    private void processTextUpdate(JTextField textField)
-    {
-        try
-        {
-            if(textField == xShiftTextField)
-            {
-                this.xShift = Double.parseDouble(xShiftTextField.getText());
-            }
-            else if(textField == yShiftTextField)
-            {
-                this.yShift = Double.parseDouble(yShiftTextField.getText());
-            }
-            else if(textField == rotationAngleTextField)
-            {
-                this.rotationAngle = Double.parseDouble(rotationAngleTextField.getText());
-            }
-            else if(textField == logScalingTextField)
-            {
-                this.logScaling = Double.parseDouble(logScalingTextField.getText());
-            }
-        }
-        catch (NumberFormatException ex)
-        {
-            return;
-        }
-        
-        if (this.autoUpdateCheckBox.isSelected())
-        {
-            runRegistration();
-            textField.requestFocus();
-        }
-    }
-
-    private static final String doubleToString(double value)
-    {
-        return String.format(Locale.ENGLISH, "%.2f", value);
-    }
-
     
     // ====================================================
     // Specialization of the parent methods
@@ -779,5 +659,4 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
     {
         super.close();
     }
-    
 }
