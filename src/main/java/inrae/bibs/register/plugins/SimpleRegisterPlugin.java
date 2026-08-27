@@ -7,6 +7,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Locale;
 
 import javax.swing.*;
@@ -20,6 +21,7 @@ import ij.WindowManager;
 import ij.gui.GUI;
 import ij.gui.ImageWindow;
 import ij.plugin.frame.PlugInFrame;
+import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import inrae.bibs.gui.GuiHelper;
 import inrae.bibs.register.ImagePairDisplay;
@@ -64,6 +66,9 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
     ImagePlus referenceImagePlus = null;
     ImagePlus movingImagePlus = null;
     
+    boolean adjustResultSize = true;
+    
+    
     /** the translation vector (in pixels) */
     double xShift = 0.0;
     double yShift = 0.0;
@@ -76,11 +81,17 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
     
     boolean validParams = true;
     
+    /** The transform model from reference space to reference image space */
+    Transform2D refImageTransform = new Translation2D(0, 0);
+    
     /** The transform model from reference space to moving image space */
-    Transform2D transform = new Translation2D(0, 0);
+    Transform2D movingImageTransform = new Translation2D(0, 0);
+    
+    /** The result of the transform applied on the reference image */
+    ImageProcessor registeredRefImage; 
     
     /** The result of the transform applied on the moving image */
-    ImageProcessor registeredImage; 
+    ImageProcessor registeredMovingImage; 
     
     ImagePairDisplay resultDisplay = new MagentaGreenDisplay();
     
@@ -100,7 +111,8 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
     JComboBox<String> imageNames2Combo;
     
     JComboBox<String> displayTypeCombo;
-    
+    JCheckBox adjustResultSizeCheckBox;
+        
     JComboBox<String> registrationTypeCombo;
 
     JLabel xShiftLabel;
@@ -223,6 +235,15 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
             }
         });
         
+        this.adjustResultSizeCheckBox = new JCheckBox("Adjust Result Size", this.adjustResultSize);
+        this.adjustResultSizeCheckBox.addActionListener(evt -> 
+        {
+            if (this.autoUpdateCheckBox.isSelected())
+            {
+                runRegistration();
+            }
+        });
+
         this.registrationTypeCombo = new JComboBox<String>();
         this.registrationTypeCombo.addItem("Translation");
         this.registrationTypeCombo.addItem("Motion (Translation+Rotation)");
@@ -330,9 +351,10 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         imagesPanel.add(this.imageNames2Combo);
 
         JPanel displayOptionsPanel = GuiHelper.createOptionsPanel("Display Options");
-        displayOptionsPanel.setLayout(new GridLayout(1, 2));
+        displayOptionsPanel.setLayout(new GridLayout(2, 2));
         displayOptionsPanel.add(new JLabel("Display Type:"));
         displayOptionsPanel.add(this.displayTypeCombo);
+        displayOptionsPanel.add(this.adjustResultSizeCheckBox);
         
         JPanel registrationPanel = GuiHelper.createOptionsPanel("Registration");
         registrationPanel.setLayout(new GridLayout(5, 2));
@@ -427,7 +449,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         updateTransform();
         
         // apply transform on moving image
-        updateRegisteredImage();
+        updateRegisteredImages();
         
         updateResultDisplay();
     }
@@ -483,7 +505,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         switch (transfoIndex)
         {
         case 0:
-            this.transform = new Translation2D(this.xShift, this.yShift);
+            this.movingImageTransform = new Translation2D(this.xShift, this.yShift);
             break;
             
         case 1:
@@ -491,7 +513,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
             double sizeX = this.referenceImagePlus.getWidth();
             double sizeY = this.referenceImagePlus.getHeight();
             Point2D center = new Point2D(sizeX/2, sizeY/2);
-            this.transform = new CenteredMotion2D(center, this.rotationAngle, this.xShift, this.yShift);
+            this.movingImageTransform = new CenteredMotion2D(center, this.rotationAngle, this.xShift, this.yShift);
             break;
         }
         case 2:
@@ -499,7 +521,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
             double sizeX = this.referenceImagePlus.getWidth();
             double sizeY = this.referenceImagePlus.getHeight();
             Point2D center = new Point2D(sizeX/2, sizeY/2);
-            this.transform = new CenteredSimilarity2D(center, this.logScaling, this.rotationAngle, this.xShift, this.yShift);
+            this.movingImageTransform = new CenteredSimilarity2D(center, this.logScaling, this.rotationAngle, this.xShift, this.yShift);
             break;
         }
         default:
@@ -510,14 +532,53 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
     /**
      * Applies the current transform on the moving image.
      */
-    public void updateRegisteredImage()
+    public void updateRegisteredImages()
     {
         // get image processors
         ImageProcessor image1 = referenceImagePlus.getProcessor();
         ImageProcessor image2 = movingImagePlus.getProcessor();
+        
+        // default bounds for result image are those of reference image 
+        int refGridShiftX = 0;
+        int refGridShiftY = 0;
+        int refGridSizeX = image1.getWidth();
+        int refGridSizeY = image1.getHeight();
+        
+        if (this.adjustResultSize)
+        {
+            // compute bounds of transformed image
+            int sizeX = movingImagePlus.getWidth();
+            int sizeY = movingImagePlus.getHeight();
+            ArrayList<Point2D> corners = new ArrayList<Point2D>(4);
+            corners.add(this.movingImageTransform.transform(new Point2D(0, 0)));
+            corners.add(this.movingImageTransform.transform(new Point2D(sizeX, 0)));
+            corners.add(this.movingImageTransform.transform(new Point2D(0, sizeY)));
+            corners.add(this.movingImageTransform.transform(new Point2D(sizeX, sizeY)));
+            double minX = 0.0;
+            double maxX = referenceImagePlus.getWidth();
+            double minY = 0.0;
+            double maxY = referenceImagePlus.getHeight();
+            for (Point2D p : corners)
+            {
+                minX = Math.min(minX, p.getX());
+                maxX = Math.max(maxX, p.getX());
+                minY = Math.min(minY, p.getY());
+                maxY = Math.max(maxY, p.getY());
+            }
+
+            refGridShiftX = (int) Math.max(Math.floor(-minX), 0);
+            refGridShiftY = (int) Math.max(Math.floor(-minY), 0);
+            refGridSizeX = (int) Math.ceil(maxX + refGridShiftX);
+            refGridSizeY = (int) Math.ceil(maxY + refGridShiftY);
+        }
+
+        ImageProcessor refGridImage = new ByteProcessor(refGridSizeX, refGridSizeY);
+        
+        IJ.log(String.format("shift=(%d,%d); size=(%d,%d)", refGridShiftX, refGridShiftY, refGridSizeX, refGridSizeY));
 
         // apply transform on moving image
-        registeredImage = Registration.computeTransformedImage(image1, this.transform, image2);
+        registeredRefImage = Registration.computeTransformedImage(refGridImage, this.refImageTransform, image1);
+        registeredMovingImage = Registration.computeTransformedImage(refGridImage, this.movingImageTransform, image2);
     }
     
     
@@ -527,11 +588,8 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
      */
     public void updateResultDisplay()
     {
-        // retrieve image data
-        ImageProcessor image1 = referenceImagePlus.getProcessor();
-        
         // compute display result
-        ImageProcessor result = resultDisplay.compute(image1, registeredImage);
+        ImageProcessor result = resultDisplay.compute(registeredRefImage, registeredMovingImage);
         ImagePlus resultPlus = new ImagePlus("Result", result);
         
         // retrieve frame for displaying result
@@ -578,7 +636,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         
         try 
         {
-            Registration.saveRegistration(file, referenceImagePlus, movingImagePlus, transform);
+            Registration.saveRegistration(file, referenceImagePlus, movingImagePlus, movingImageTransform);
         }
         catch (IOException ex)
         {
@@ -609,7 +667,7 @@ public class SimpleRegisterPlugin extends PlugInFrame implements KeyListener
         }
         
         // updates current display
-        if (this.autoUpdateCheckBox.isSelected() && this.transform != null)
+        if (this.autoUpdateCheckBox.isSelected() && this.movingImageTransform != null)
         {
             updateResultDisplay();
         }
